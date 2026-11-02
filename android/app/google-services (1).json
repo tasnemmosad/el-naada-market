@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "23625532507",
+    "project_id": "el-nada-market",
+    "storage_bucket": "el-nada-market.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:23625532507:android:ab3fd459d054eda05a2b7e",
+        "android_client_info": {
+          "package_name": "com.example.el_nada_market"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDo-9q4bbw-6slrVYv4UR6n6mXx40QiRdc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

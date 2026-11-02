@@ -1,0 +1,22 @@
+# Environment
+.env
+**/.env
+
+# Node
+node_modules/
+**/node_modules/
+
+# Flutter
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+build/
+
+# IDE
+.idea/
+.vscode/
+
+# Firebase secrets
+*serviceAccount*.json
+**/*serviceAccount*.json
