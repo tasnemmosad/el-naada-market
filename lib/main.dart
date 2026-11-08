@@ -1,13 +1,13 @@
 import 'package:el_nada_market/core/di/set_up_locator.dart';
 import 'package:el_nada_market/features/auth/presentation/screens/auth_gate.dart';
 import 'package:flutter/material.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'firebase_options.dart';
+
+
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  // await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
   await setupServiceLocator();
 

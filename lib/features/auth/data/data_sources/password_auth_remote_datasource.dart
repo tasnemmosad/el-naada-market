@@ -1,14 +1,15 @@
 
+ 
 import 'package:dio/dio.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class PasswordAuthRemoteDatasource {
   final Dio dio;
-  final FirebaseAuth firebaseAuth;
+  final FlutterSecureStorage secureStorage;
 
   PasswordAuthRemoteDatasource({
     required this.dio,
-    required this.firebaseAuth,
+    required this.secureStorage,
   });
 
   Future<void> register({
@@ -46,14 +47,23 @@ class PasswordAuthRemoteDatasource {
       },
     );
 
-    final customToken = response.data?['customToken'];
+    final data = response.data;
+    final token = data?['token'];
 
-    if (customToken is! String || customToken.isEmpty) {
+    if (token is! String || token.isEmpty) {
       throw const FormatException(
         'Authentication token is missing',
       );
     }
 
-    await firebaseAuth.signInWithCustomToken(customToken);
+    // Save JWT securely on the device.
+    await secureStorage.write(
+      key: 'auth_token',
+      value: token,
+    );
+  }
+
+  Future<void> logout() async {
+    await secureStorage.delete(key: 'auth_token');
   }
 }

@@ -12,13 +12,20 @@ import '../widgets/auth_validators.dart';
 import '../widgets/password_auth_header.dart';
 
 class RegisterScreen extends StatefulWidget {
-  const RegisterScreen({
-    super.key,
-    required this.onLogin,
-  });
+  // const RegisterScreen({
+  //   super.key,
+  //   required this.onLogin,
+  // });
 
-  final VoidCallback onLogin;
+  // final VoidCallback onLogin;
+const RegisterScreen({
+  super.key,
+  required this.onLogin,
+  required this.onAuthenticated,
+});
 
+final VoidCallback onLogin;
+final VoidCallback onAuthenticated;
   @override
   State<RegisterScreen> createState() => _RegisterScreenState();
 }
@@ -83,21 +90,28 @@ class _RegisterScreenState extends State<RegisterScreen> {
         body: BlocConsumer<
             PasswordAuthCubit,
             PasswordAuthState>(
-          listenWhen: (_, current) =>
-              current is PasswordAuthError,
-          listener: (context, state) {
-            if (state is PasswordAuthError) {
-              ScaffoldMessenger.of(context)
-                ..hideCurrentSnackBar()
-                ..showSnackBar(
-                  SnackBar(
-                    content: Text(state.message),
-                    backgroundColor: AppColors.error,
-                    behavior: SnackBarBehavior.floating,
-                  ),
-                );
-            }
-          },
+         listenWhen: (_, current) =>
+    current is PasswordAuthError ||
+    current is PasswordAuthSuccess,
+
+listener: (context, state) {
+  if (state is PasswordAuthSuccess) {
+    widget.onAuthenticated();
+    return;
+  }
+
+  if (state is PasswordAuthError) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(state.message),
+          backgroundColor: AppColors.error,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+  }
+},
           builder: (context, state) {
             final isLoading = state is PasswordAuthLoading;
 

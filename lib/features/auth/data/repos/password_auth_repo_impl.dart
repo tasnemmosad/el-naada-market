@@ -1,7 +1,6 @@
 
 import 'package:dartz/dartz.dart';
 import 'package:dio/dio.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 
 import 'package:el_nada_market/core/errors/failure.dart';
 import 'package:el_nada_market/features/auth/data/data_sources/password_auth_remote_datasource.dart';
@@ -45,8 +44,8 @@ class PasswordAuthRepoImpl implements PasswordAuthRepo {
   ) async {
     try {
       await operation();
-
       return const Right(null);
+
     } on DioException catch (e) {
       final data = e.response?.data;
 
@@ -61,12 +60,14 @@ class PasswordAuthRepoImpl implements PasswordAuthRepo {
           'تعذر الاتصال بالخدمة. يرجى المحاولة مرة أخرى.',
         ),
       );
-    } on FirebaseAuthException {
+
+    } on FormatException {
       return Left(
         AuthFailure(
-          'تعذر إتمام تسجيل الدخول. يرجى المحاولة مرة أخرى.',
+          'استجابة غير صحيحة من الخادم.',
         ),
       );
+
     } catch (_) {
       return Left(
         AuthFailure(

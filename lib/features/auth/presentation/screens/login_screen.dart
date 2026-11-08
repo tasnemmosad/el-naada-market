@@ -12,10 +12,17 @@ import '../manager/password_auth_state.dart';
 import '../widgets/password_auth_header.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key, required this.onCreateAccount});
+  // const LoginScreen({super.key, required this.onCreateAccount});
 
-  final VoidCallback onCreateAccount;
+  // final VoidCallback onCreateAccount;
+const LoginScreen({
+  super.key,
+  required this.onCreateAccount,
+  required this.onAuthenticated,
+});
 
+final VoidCallback onCreateAccount;
+final VoidCallback onAuthenticated;
   @override
   State<LoginScreen> createState() => _LoginScreenState();
 }
@@ -59,20 +66,28 @@ class _LoginScreenState extends State<LoginScreen> {
       child: Scaffold(
         backgroundColor: AppColors.background,
         body: BlocConsumer<PasswordAuthCubit, PasswordAuthState>(
-          listenWhen: (_, current) => current is PasswordAuthError,
-          listener: (context, state) {
-            if (state is PasswordAuthError) {
-              ScaffoldMessenger.of(context)
-                ..hideCurrentSnackBar()
-                ..showSnackBar(
-                  SnackBar(
-                    content: Text(state.message),
-                    backgroundColor: AppColors.error,
-                    behavior: SnackBarBehavior.floating,
-                  ),
-                );
-            }
-          },
+         listenWhen: (_, current) =>
+    current is PasswordAuthError ||
+    current is PasswordAuthSuccess,
+
+listener: (context, state) {
+  if (state is PasswordAuthSuccess) {
+    widget.onAuthenticated();
+    return;
+  }
+
+  if (state is PasswordAuthError) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(state.message),
+          backgroundColor: AppColors.error,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+  }
+},
           builder: (context, state) {
             final isLoading = state is PasswordAuthLoading;
 

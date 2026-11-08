@@ -1,12 +1,13 @@
-import 'package:firebase_auth/firebase_auth.dart';
+
 import 'package:flutter/material.dart';
 
 class HomeScreen extends StatelessWidget {
-  const HomeScreen({super.key});
+  final Future<void> Function() onLogout;
 
-  Future<void> logout() async {
-    await FirebaseAuth.instance.signOut();
-  }
+  const HomeScreen({
+    super.key,
+    required this.onLogout,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -15,7 +16,9 @@ class HomeScreen extends StatelessWidget {
         title: const Text('Home'),
         actions: [
           IconButton(
-            onPressed: logout,
+            onPressed: () async {
+              await onLogout();
+            },
             icon: const Icon(Icons.logout),
             tooltip: 'تسجيل الخروج',
           ),

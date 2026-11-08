@@ -1,16 +1,17 @@
 
+const authenticateToken = require('../middleware/auth_middleware');
 const express = require('express');
+
 const bcrypt = require('bcryptjs');
-const crypto = require('node:crypto');
+const jwt = require('jsonwebtoken');
 const rateLimit = require('express-rate-limit');
 
-const { auth, db } = require('../config/firebase');
-const { FieldValue } =
-  require('firebase-admin/firestore');
+
+const db = require('../config/database');
 
 const router = express.Router();
 
-const registerLimiter = rateLimit({
+const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 10,
   standardHeaders: 'draft-8',
@@ -36,17 +37,21 @@ function normalizePhone(input) {
   return null;
 }
 
-// Stable Firebase UID for each phone number.
-function uidForPhone(phone) {
-  const hash = crypto
-    .createHash('sha256')
-    .update(phone)
-    .digest('hex');
-
-  return 'customer_' + hash;
+function generateToken(user) {
+  return jwt.sign(
+    {
+      userId: user.id,
+      phone: user.phone,
+    },
+    process.env.JWT_SECRET,
+    {
+      expiresIn: process.env.JWT_EXPIRES_IN || '1d',
+    }
+  );
 }
 
-router.post('/register', registerLimiter, async (req, res) => {
+// REGISTER
+router.post('/register', authLimiter, async (req, res) => {
   const phone = normalizePhone(req.body?.phone);
   const password = req.body?.password;
 
@@ -66,67 +71,40 @@ router.post('/register', registerLimiter, async (req, res) => {
     });
   }
 
-  const uid = uidForPhone(phone);
-  let userCreated = false;
-
   try {
-    // Never store the original password.
     const passwordHash = await bcrypt.hash(password, 12);
 
-    // Firebase Auth enforces uniqueness of the UID.
-    console.log('STEP 1: Creating Firebase user');
-    await auth.createUser({
-      uid,
-      disabled: false,
-    });
-    console.log('STEP 2: Firebase user created');
-
-    userCreated = true;
-
-    const batch = db.batch();
-
-    batch.create(db.collection('users').doc(uid), {
-      phoneNumber: phone,
-      phoneVerified: false,
-      role: 'customer',
-      createdAt: FieldValue.serverTimestamp(),
-    });
-
-    batch.create(
-      db.collection('password_accounts').doc(uid),
-      {
-        passwordHash,
-        createdAt: FieldValue.serverTimestamp(),
-      },
+    const [result] = await db.execute(
+      `INSERT INTO users (phone, password_hash)
+       VALUES (?, ?)`,
+      [phone, passwordHash]
     );
 
-console.log('STEP 3: Creating custom token');
+    const user = {
+      id: result.insertId,
+      phone,
+    };
 
-    const customToken = await auth.createCustomToken(uid);
-console.log('STEP 4: Custom token created');
-    await batch.commit();
+    const token = generateToken(user);
 
     return res.status(201).json({
+      success: true,
       message: 'تم إنشاء الحساب بنجاح.',
-      customToken,
+      token,
+      user: {
+        id: user.id,
+        phone: user.phone,
+      },
     });
+
   } catch (error) {
-    if (error.code === 'auth/uid-already-exists') {
+    if (error.code === 'ER_DUP_ENTRY') {
       return res.status(409).json({
         message: 'هذا الرقم مسجل بالفعل.',
       });
     }
 
-    console.error('Register error:', error.code || error.message);
-
-    // Roll back incomplete registration.
-    if (userCreated) {
-      try {
-        await auth.deleteUser(uid);
-      } catch (rollbackError) {
-        console.error('Rollback failed:', rollbackError.code);
-      }
-    }
+    console.error('Register error:', error.message);
 
     return res.status(500).json({
       message: 'تعذر إنشاء الحساب. يرجى المحاولة لاحقًا.',
@@ -134,7 +112,8 @@ console.log('STEP 4: Custom token created');
   }
 });
 
-router.post('/login', registerLimiter, async (req, res) => {
+// LOGIN
+router.post('/login', authLimiter, async (req, res) => {
   const phone = normalizePhone(req.body?.phone);
   const password = req.body?.password;
 
@@ -142,72 +121,95 @@ router.post('/login', registerLimiter, async (req, res) => {
     message: 'رقم الموبايل أو كلمة المرور غير صحيحة.',
   };
 
-  if (!phone || typeof password !== 'string') {
-    return res.status(401).json(invalidCredentials);
-  }
-
-  if (Buffer.byteLength(password, 'utf8') > 72) {
+  if (
+    !phone ||
+    typeof password !== 'string' ||
+    Buffer.byteLength(password, 'utf8') > 72
+  ) {
     return res.status(401).json(invalidCredentials);
   }
 
   try {
-    const uid = uidForPhone(phone);
+    const [rows] = await db.execute(
+      `SELECT id, phone, password_hash
+       FROM users
+       WHERE phone = ?
+       LIMIT 1`,
+      [phone]
+    );
 
-    // Check Firebase account
-    let user;
-
-    try {
-      user = await auth.getUser(uid);
-    } catch (error) {
-      if (error.code === 'auth/user-not-found') {
-        return res.status(401).json(invalidCredentials);
-      }
-      throw error;
-    }
-
-    if (user.disabled) {
-      return res.status(403).json({
-        message: 'هذا الحساب غير متاح حاليًا.',
-      });
-    }
-
-    // Get saved password hash
-    const doc = await db
-      .collection('password_accounts')
-      .doc(uid)
-      .get();
-
-    if (!doc.exists) {
+    if (rows.length === 0) {
       return res.status(401).json(invalidCredentials);
     }
 
-    // Verify password
-    const passwordHash = doc.data().passwordHash;
+    const user = rows[0];
 
     const isCorrect = await bcrypt.compare(
       password,
-      passwordHash,
+      user.password_hash
     );
 
     if (!isCorrect) {
       return res.status(401).json(invalidCredentials);
     }
 
-    // Create Firebase Custom Token
-    const customToken = await auth.createCustomToken(uid);
+    const token = generateToken(user);
 
     return res.status(200).json({
+      success: true,
       message: 'تم تسجيل الدخول بنجاح.',
-      customToken,
+      token,
+      user: {
+        id: user.id,
+        phone: user.phone,
+      },
     });
 
   } catch (error) {
-    console.error('Login error:', error.code || error.message);
-
+    // console.error('Login error:', error.message);
+console.error('LOGIN ERROR DETAILS:');
+console.error(error);
+console.error('Error code:', error.code);
+console.error('Error message:', error.message);
+console.error('Error stack:', error.stack);
     return res.status(500).json({
       message: 'تعذر تسجيل الدخول. يرجى المحاولة لاحقًا.',
     });
   }
+  
 });
+router.get('/me', authenticateToken, async (req, res) => {
+  try {
+    const [rows] = await db.execute(
+      `SELECT id, phone FROM users WHERE id = ? LIMIT 1`,
+      [req.user.userId]
+    );
 
+    if (rows.length === 0) {
+      return res.status(401).json({
+        message: 'المستخدم غير موجود.',
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      user: rows[0],
+    });
+
+  } catch (error) {
+    console.error('Auth verification error:', error.message);
+
+    return res.status(500).json({
+      message: 'تعذر التحقق من الحساب.',
+    });
+  }
+});
+console.log('AUTH ROUTES LOADED');
+console.log(
+  'Registered auth routes:',
+  router.stack.map(layer => ({
+    path: layer.route?.path,
+    methods: layer.route?.methods,
+  }))
+);
 module.exports = router;
