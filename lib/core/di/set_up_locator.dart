@@ -8,6 +8,7 @@ import 'package:el_nada_market/features/auth/domain/usecases/login_with_password
 import 'package:el_nada_market/features/auth/domain/usecases/register_with_password_usecase.dart';
 
 import 'package:el_nada_market/features/auth/presentation/manager/password_auth_cubit.dart';
+import 'package:el_nada_market/features/cart/manager/cart_cubit.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import 'package:get_it/get_it.dart';
@@ -16,7 +17,6 @@ import 'package:get_it/get_it.dart';
 final sl = GetIt.instance;
 
 Future<void> setupServiceLocator() async {
-
   // Secure Storage
   sl.registerLazySingleton<FlutterSecureStorage>(
     () => const FlutterSecureStorage(),
@@ -37,9 +37,7 @@ Future<void> setupServiceLocator() async {
     );
 
     dio.interceptors.add(
-      AuthInterceptor(
-        secureStorage: sl<FlutterSecureStorage>(),
-      ),
+      AuthInterceptor(secureStorage: sl<FlutterSecureStorage>()),
     );
 
     return dio;
@@ -69,4 +67,5 @@ Future<void> setupServiceLocator() async {
       registerUsecase: sl<RegisterWithPasswordUsecase>(),
     ),
   );
+  sl.registerLazySingleton<CartCubit>(() => CartCubit());
 }

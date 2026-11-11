@@ -1,13 +1,13 @@
-import 'package:el_nada_market/core/di/set_up_locator.dart';
-import 'package:el_nada_market/features/auth/presentation/screens/auth_gate.dart';
+
+import 'package:el_nada_market/features/cart/manager/cart_cubit.dart';
 import 'package:flutter/material.dart';
-
-
+import 'package:el_nada_market/core/di/set_up_locator.dart';
+import 'package:el_nada_market/core/theme/app_theme.dart';
+import 'package:el_nada_market/features/auth/presentation/screens/auth_gate.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  // await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
   await setupServiceLocator();
 
@@ -19,22 +19,14 @@ class ElNadaMarket extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'خضروات وفواكه الندى',
-      theme: ThemeData(
-        useMaterial3: true,
-        fontFamily: 'Cairo',
-        scaffoldBackgroundColor: const Color(0xFFFFFEF9),
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF19813E)),
-      ),
-
-      // home: BlocProvider(
-      //   create: (_) => sl<PhoneAuthCubit>(),
-      //   // child: const LoginScreen(),
-      //   child: const AuthGate(),
-      // ),
-      home: const AuthGate(),
-    );
+ return BlocProvider<CartCubit>.value(
+  value: sl<CartCubit>(),
+  child: MaterialApp(
+    debugShowCheckedModeBanner: false,
+    title: 'خضروات وفواكه الندى',
+    theme: AppTheme.lightTheme,
+    home: const AuthGate(),
+  ),
+);
   }
 }

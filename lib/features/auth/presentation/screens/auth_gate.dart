@@ -1,5 +1,7 @@
-
-
+import 'package:el_nada_market/features/cart/manager/cart_cubit.dart';
+import 'package:el_nada_market/features/products/presentation/screens/fruits_screen.dart';
+import 'package:el_nada_market/features/products/presentation/screens/vegetables_screen.dart';
+import 'package:el_nada_market/features/profile/presentation/profile_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:dio/dio.dart';
@@ -79,15 +81,16 @@ class _AuthGateState extends State<AuthGate> {
       });
     }
   }
+void _onAuthenticated() {
+  if (!mounted) return;
 
-  void _onAuthenticated() {
-    if (!mounted) return;
+  // Start with a fresh cart for the new session
+  sl<CartCubit>().clearCart();
 
-    setState(() {
-      _isAuthenticated = true;
-    });
-  }
-
+  setState(() {
+    _isAuthenticated = true;
+  });
+}
   void _openRegister() {
     setState(() {
       _showRegister = true;
@@ -102,6 +105,9 @@ class _AuthGateState extends State<AuthGate> {
 Future<void> _onLogout() async {
   final storage = sl<FlutterSecureStorage>();
 
+  // Clear current user's cart
+  sl<CartCubit>().clearCart();
+
   await storage.delete(key: 'auth_token');
 
   if (!mounted) return;
@@ -111,6 +117,7 @@ Future<void> _onLogout() async {
     _showRegister = false;
   });
 }
+
   @override
   void dispose() {
     _authCubit.close();
@@ -123,11 +130,31 @@ Future<void> _onLogout() async {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-  if (_isAuthenticated) {
-  return HomeScreen(
-    onLogout: _onLogout,
-  );
-}
+    if (_isAuthenticated) {
+      return HomeScreen(
+        onLogout: _onLogout,
+        onFruits: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const FruitsScreen()),
+          );
+        },
+        onVegetables: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const VegetablesScreen()),
+          );
+        },
+        onProfile: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const ProfileScreen()),
+          );
+        },
+      );
+    }
+
+    // }
 
     return BlocProvider<PasswordAuthCubit>.value(
       value: _authCubit,
