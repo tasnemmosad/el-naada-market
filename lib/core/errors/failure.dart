@@ -1,4 +1,3 @@
-
 import 'package:dio/dio.dart';
 
 abstract class Failure {
@@ -14,12 +13,10 @@ class ServerFailure extends Failure {
   ServerFailure(super.message);
 
   factory ServerFailure.fromDioError(DioException e) {
-    return ServerFailure(
-      e.message ?? 'Unknown Dio error',
-    );
+    return ServerFailure(e.message ?? 'Unknown Dio error');
   }
-  
 }
+
 class AuthFailure extends Failure {
   AuthFailure(super.message);
 }

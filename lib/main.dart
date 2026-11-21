@@ -1,5 +1,7 @@
 
+
 import 'package:el_nada_market/features/cart/manager/cart_cubit.dart';
+import 'package:el_nada_market/features/products/presentation/manager/products_cubit.dart';
 import 'package:flutter/material.dart';
 import 'package:el_nada_market/core/di/set_up_locator.dart';
 import 'package:el_nada_market/core/theme/app_theme.dart';
@@ -19,14 +21,22 @@ class ElNadaMarket extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
- return BlocProvider<CartCubit>.value(
-  value: sl<CartCubit>(),
-  child: MaterialApp(
-    debugShowCheckedModeBanner: false,
-    title: 'خضروات وفواكه الندى',
-    theme: AppTheme.lightTheme,
-    home: const AuthGate(),
-  ),
-);
+    return MultiBlocProvider(
+      providers: [
+        BlocProvider<CartCubit>.value(
+          value: sl<CartCubit>(),
+        ),
+
+        BlocProvider<ProductsCubit>(
+          create: (_) => sl<ProductsCubit>()..getProducts(),
+        ),
+      ],
+      child: MaterialApp(
+        debugShowCheckedModeBanner: false,
+        title: 'خضروات وفواكه الندى',
+        theme: AppTheme.lightTheme,
+        home: const AuthGate(),
+      ),
+    );
   }
 }

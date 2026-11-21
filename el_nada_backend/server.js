@@ -59,6 +59,10 @@ const helmet = require('helmet');
 
 const db = require('./config/database');
 const authRoutes = require('./routes/auth_routes');
+const productsRoutes = require('./routes/products_routes');
+const basketRoutes = require('./routes/basket_routes');
+const ordersRoutes = require('./routes/orders_routes');
+const companyRoutes = require('./routes/company_routes');
 
 const app = express();
 
@@ -96,6 +100,10 @@ app.get('/health/db', async (req, res) => {
 
 // Authentication APIs
 app.use('/auth', authRoutes);
+app.use('/products', productsRoutes);
+app.use('/basket', basketRoutes);
+app.use('/orders', ordersRoutes);
+app.use('/company', companyRoutes);
 
 const PORT = process.env.PORT || 3000;
 

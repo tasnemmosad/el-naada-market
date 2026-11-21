@@ -1,9 +1,8 @@
-
 import 'package:flutter/material.dart';
 import 'package:el_nada_market/core/theme/app_colors.dart';
 
 class QuantitySelector extends StatelessWidget {
-  final int quantity;
+  final double quantity;
   final VoidCallback onIncrease;
   final VoidCallback onDecrease;
 
@@ -14,6 +13,10 @@ class QuantitySelector extends StatelessWidget {
     required this.onDecrease,
   });
 
+  String _formatQuantity(double value) {
+    return value.toStringAsFixed(2).replaceAll(RegExp(r'\.?0+$'), '');
+  }
+
   @override
   Widget build(BuildContext context) {
     return Directionality(
@@ -21,37 +24,28 @@ class QuantitySelector extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _buildButton(
-            icon: Icons.remove,
-            onTap: onDecrease,
-          ),
+          _buildButton(icon: Icons.remove, onTap: onDecrease),
 
           SizedBox(
-            width: 34,
+            width: 42,
             child: Text(
-              '$quantity',
+              _formatQuantity(quantity),
               textAlign: TextAlign.center,
               style: const TextStyle(
-                fontSize: 17,
+                fontSize: 16,
                 fontWeight: FontWeight.bold,
                 color: AppColors.textPrimary,
               ),
             ),
           ),
 
-          _buildButton(
-            icon: Icons.add,
-            onTap: onIncrease,
-          ),
+          _buildButton(icon: Icons.add, onTap: onIncrease),
         ],
       ),
     );
   }
 
-  Widget _buildButton({
-    required IconData icon,
-    required VoidCallback onTap,
-  }) {
+  Widget _buildButton({required IconData icon, required VoidCallback onTap}) {
     return SizedBox(
       width: 38,
       height: 42,
@@ -60,10 +54,7 @@ class QuantitySelector extends StatelessWidget {
         style: OutlinedButton.styleFrom(
           padding: EdgeInsets.zero,
           foregroundColor: AppColors.primaryGreen,
-          side: const BorderSide(
-            color: AppColors.primaryGreen,
-            width: 1.5,
-          ),
+          side: const BorderSide(color: AppColors.primaryGreen, width: 1.5),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(10),
           ),

@@ -1,48 +1,94 @@
-
-import 'package:el_nada_market/features/products/data/models/product_model.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import 'package:el_nada_market/features/products/data/models/product_model.dart';
+import 'package:el_nada_market/features/cart/data/data_sources/cart_remote_data_source.dart';
 
 import 'cart_state.dart';
 
 class CartCubit extends Cubit<CartState> {
-  CartCubit() : super(CartInitial());
+  final CartRemoteDataSource remoteDataSource;
 
-  final Map<String, ProductModel> _products = {};
-  final Map<String, int> _quantities = {};
+  CartCubit(this.remoteDataSource) : super(CartInitial());
 
-  void increase(ProductModel product) {
-    _products[product.id] = product;
+  final Map<int, ProductModel> _products = {};
+  final Map<int, double> _quantities = {};
 
-    _quantities[product.id] =
-        (_quantities[product.id] ?? 0) + 1;
+  static const double quantityStep = 0.25;
 
-    _emitUpdated();
-  }
+  Future<void> loadBasket() async {
+    final items = await remoteDataSource.getBasket();
 
-  void decrease(String productId) {
-    final currentQuantity = _quantities[productId] ?? 0;
+    _products.clear();
+    _quantities.clear();
 
-    if (currentQuantity <= 0) return;
+    for (final item in items) {
+      final productJson = Map<String, dynamic>.from(item);
 
-    if (currentQuantity == 1) {
-      _quantities.remove(productId);
-      _products.remove(productId);
-    } else {
-      _quantities[productId] = currentQuantity - 1;
+      productJson['id'] = item['product_id'];
+
+      final product = ProductModel.fromJson(productJson);
+      final quantity = double.parse(item['quantity'].toString());
+
+      if (quantity <= 0) continue;
+
+      _products[product.id] = product;
+      _quantities[product.id] = quantity;
     }
 
     _emitUpdated();
   }
 
-  void removeProduct(String productId) {
+  Future<void> increase(ProductModel product) async {
+    final currentQuantity = _quantities[product.id] ?? 0.0;
+    final newQuantity = currentQuantity + quantityStep;
+
+    await remoteDataSource.updateQuantity(
+      productId: product.id,
+      quantity: newQuantity,
+    );
+
+    _products[product.id] = product;
+    _quantities[product.id] = newQuantity;
+
+    _emitUpdated();
+  }
+
+  Future<void> decrease(int productId) async {
+    final currentQuantity = _quantities[productId] ?? 0.0;
+
+    if (currentQuantity <= 0) return;
+
+    final newQuantity = currentQuantity - quantityStep;
+
+    if (newQuantity <= 0) {
+      await remoteDataSource.removeProduct(productId);
+
+      _quantities.remove(productId);
+      _products.remove(productId);
+    } else {
+      await remoteDataSource.updateQuantity(
+        productId: productId,
+        quantity: newQuantity,
+      );
+
+      _quantities[productId] = newQuantity;
+    }
+
+    _emitUpdated();
+  }
+
+  Future<void> removeProduct(int productId) async {
+    await remoteDataSource.removeProduct(productId);
+
     _quantities.remove(productId);
     _products.remove(productId);
 
     _emitUpdated();
   }
 
-  void clearCart() {
+  Future<void> clearCart() async {
+    await remoteDataSource.clearBasket();
+
     _quantities.clear();
     _products.clear();
 
@@ -56,5 +102,31 @@ class CartCubit extends Cubit<CartState> {
         products: List.unmodifiable(_products.values),
       ),
     );
+  }
+
+  void clearLocalCart() {
+    _quantities.clear();
+    _products.clear();
+    emit(CartInitial());
+  }
+
+  Future<Map<String, dynamic>> createOrder({
+    required String deliveryType,
+    required String paymentMethod,
+  }) async {
+    final response = await remoteDataSource.createOrder(
+      deliveryType: deliveryType,
+      paymentMethod: paymentMethod,
+    );
+
+    if (response['success'] != true) {
+      throw Exception(response['message'] ?? 'فشل إنشاء الطلب');
+    }
+
+    _quantities.clear();
+    _products.clear();
+    emit(CartInitial());
+
+    return Map<String, dynamic>.from(response['order'] as Map);
   }
 }

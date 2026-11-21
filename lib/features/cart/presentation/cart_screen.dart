@@ -1,8 +1,8 @@
 
-
+import 'package:el_nada_market/features/orders/presentation/manager/orders_cubit.dart';
+import 'package:el_nada_market/features/orders/presentation/manager/orders_state.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-
 import 'package:el_nada_market/core/theme/app_colors.dart';
 import 'package:el_nada_market/features/cart/manager/cart_cubit.dart';
 import 'package:el_nada_market/features/cart/manager/cart_state.dart';
@@ -16,6 +16,162 @@ class CartScreen extends StatefulWidget {
 
 class _CartScreenState extends State<CartScreen> {
   String? selectedDelivery;
+  String? selectedPayment;
+  bool _isSubmitting = false;
+
+  String _unitLabel(String unit) {
+    switch (unit.toLowerCase()) {
+      case 'kg':
+        return 'كجم';
+      case 'grm':
+        return 'جرام';
+      case 'piece':
+        return 'قطعة';
+      case 'carton':
+        return 'كرتونة';
+      default:
+        return unit;
+    }
+  }
+
+  String _formatNumber(double value) {
+    return value.toStringAsFixed(2).replaceAll(
+          RegExp(r'\.?0+$'),
+          '',
+        );
+  }
+
+  Future<void> _submitOrder() async {
+    if (_isSubmitting) return;
+
+    if (selectedDelivery == null) {
+      _showMessage('اختاري طريقة الاستلام أولاً');
+      return;
+    }
+
+    if (selectedPayment == null) {
+      _showMessage('اختاري طريقة الدفع أولاً');
+      return;
+    }
+
+    setState(() {
+      _isSubmitting = true;
+    });
+
+    try {
+      final ordersCubit = context.read<OrdersCubit>();
+
+      await ordersCubit.createOrder(
+        deliveryType: selectedDelivery!,
+        paymentMethod: selectedPayment!,
+      );
+
+      if (!mounted) return;
+
+      final orderState = ordersCubit.state;
+
+      if (orderState is OrdersError) {
+        _showMessage(orderState.message);
+        return;
+      }
+
+      if (orderState is! OrdersSuccess) {
+        _showMessage('لم يتم تأكيد إنشاء الطلب');
+        return;
+      }
+
+      final order = orderState.order;
+      final orderId = order['id'];
+      final total = order['total'];
+
+      // السيرفر بيفرغ السلة بعد إنشاء الطلب بنجاح.
+      // هنا بنفرغ النسخة المحلية فقط.
+      context.read<CartCubit>().clearLocalCart();
+
+      setState(() {
+        selectedDelivery = null;
+        selectedPayment = null;
+      });
+
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) {
+          return Directionality(
+            textDirection: TextDirection.rtl,
+            child: AlertDialog(
+              title: const Text(
+                'تم إرسال طلبك بنجاح',
+                textAlign: TextAlign.center,
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.check_circle,
+                    color: Colors.green,
+                    size: 65,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'رقم الطلب: $orderId',
+                    style: const TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'الإجمالي: $total جنيه',
+                    style: const TextStyle(fontSize: 16),
+                  ),
+                ],
+              ),
+              actions: [
+                Center(
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.pop(dialogContext);
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primaryGreen,
+                      foregroundColor: Colors.white,
+                    ),
+                    child: const Text('حسناً'),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      );
+
+      if (mounted) {
+        ordersCubit.reset();
+      }
+    } catch (error) {
+      if (!mounted) return;
+
+      _showMessage(
+        error.toString().replaceFirst('Exception: ', ''),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+        });
+      }
+    }
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -23,14 +179,11 @@ class _CartScreenState extends State<CartScreen> {
       textDirection: TextDirection.rtl,
       child: Scaffold(
         backgroundColor: AppColors.background,
-
-        // Existing Top Bar
         appBar: AppBar(
           title: const Text('سلتي'),
           backgroundColor: AppColors.background,
           centerTitle: true,
         ),
-
         body: BlocBuilder<CartCubit, CartState>(
           builder: (context, state) {
             if (state is CartInitial ||
@@ -55,13 +208,14 @@ class _CartScreenState extends State<CartScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Add More Button
                   Align(
                     alignment: Alignment.centerRight,
                     child: OutlinedButton.icon(
-                      onPressed: () {
-                        Navigator.pop(context);
-                      },
+                      onPressed: _isSubmitting
+                          ? null
+                          : () {
+                              Navigator.pop(context);
+                            },
                       icon: const Icon(
                         Icons.arrow_forward,
                         size: 18,
@@ -83,7 +237,6 @@ class _CartScreenState extends State<CartScreen> {
 
                   const SizedBox(height: 18),
 
-                  // Cart Title
                   Text(
                     'سلتي',
                     textAlign: TextAlign.right,
@@ -98,20 +251,19 @@ class _CartScreenState extends State<CartScreen> {
 
                   const SizedBox(height: 16),
 
-                  // Cart Items
                   Expanded(
                     child: ListView.separated(
                       itemCount: state.products.length,
-                      separatorBuilder: (_, _) =>
+                      separatorBuilder: (_, __) =>
                           const SizedBox(height: 12),
                       itemBuilder: (context, index) {
                         final product = state.products[index];
 
                         final quantity =
-                            state.quantities[product.id] ?? 0;
+                            state.quantities[product.id] ?? 0.0;
 
                         final itemTotal =
-                            product.pricePerKg * quantity;
+                            product.unitPrice * quantity;
 
                         return Container(
                           padding: const EdgeInsets.symmetric(
@@ -124,11 +276,10 @@ class _CartScreenState extends State<CartScreen> {
                           ),
                           child: Row(
                             children: [
-                              // Product Name
                               Expanded(
                                 flex: 2,
                                 child: Text(
-                                  product.name,
+                                  product.nameAr,
                                   textAlign: TextAlign.right,
                                   style: const TextStyle(
                                     fontSize: 17,
@@ -138,52 +289,59 @@ class _CartScreenState extends State<CartScreen> {
                                 ),
                               ),
 
-                              // Quantity Controls
                               Expanded(
                                 flex: 3,
                                 child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.center,
                                   children: [
                                     _quantityButton(
                                       icon: Icons.remove,
-                                      onPressed: () {
-                                        context
-                                            .read<CartCubit>()
-                                            .decrease(product.id);
-                                      },
+                                      onPressed: _isSubmitting
+                                          ? null
+                                          : () {
+                                              context
+                                                  .read<CartCubit>()
+                                                  .decrease(product.id);
+                                            },
                                     ),
 
-                                    Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 7,
-                                      ),
-                                      child: Text(
-                                        '$quantity كجم',
-                                        style: const TextStyle(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w600,
-                                          color: AppColors.textPrimary,
+                                    Flexible(
+                                      child: Padding(
+                                        padding:
+                                            const EdgeInsets.symmetric(
+                                          horizontal: 7,
+                                        ),
+                                        child: Text(
+                                          '${_formatNumber(quantity)} ${_unitLabel(product.unitOfMsrSo)}',
+                                          textAlign: TextAlign.center,
+                                          style: const TextStyle(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w600,
+                                            color: AppColors.textPrimary,
+                                          ),
                                         ),
                                       ),
                                     ),
 
                                     _quantityButton(
                                       icon: Icons.add,
-                                      onPressed: () {
-                                        context
-                                            .read<CartCubit>()
-                                            .increase(product);
-                                      },
+                                      onPressed: _isSubmitting
+                                          ? null
+                                          : () {
+                                              context
+                                                  .read<CartCubit>()
+                                                  .increase(product);
+                                            },
                                     ),
                                   ],
                                 ),
                               ),
 
-                              // Product Total Price
                               Expanded(
                                 flex: 2,
                                 child: Text(
-                                  '${itemTotal.toStringAsFixed(0)} جنيه',
+                                  '${_formatNumber(itemTotal)} جنيه',
                                   textAlign: TextAlign.center,
                                   style: const TextStyle(
                                     fontSize: 14,
@@ -200,7 +358,6 @@ class _CartScreenState extends State<CartScreen> {
 
                   const SizedBox(height: 18),
 
-                  // Grand Total
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -213,7 +370,7 @@ class _CartScreenState extends State<CartScreen> {
                         ),
                       ),
                       Text(
-                        '${state.totalPrice.toStringAsFixed(0)} جنيه',
+                        '${_formatNumber(state.totalPrice)} جنيه',
                         style: const TextStyle(
                           fontSize: 21,
                           fontWeight: FontWeight.bold,
@@ -225,70 +382,144 @@ class _CartScreenState extends State<CartScreen> {
 
                   const SizedBox(height: 20),
 
-                  // Delivery Options
+                  const Text(
+                    'طريقة الاستلام',
+                    style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+
+                  const SizedBox(height: 10),
+
                   Row(
                     children: [
                       Expanded(
-                        child: _buildDeliveryButton(
+                        child: _buildOptionButton(
                           title: 'سآتي بنفسي',
                           value: 'pickup',
+                          selectedValue: selectedDelivery,
+                          onSelected: (value) {
+                            setState(() {
+                              selectedDelivery = value;
+                            });
+                          },
                         ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
-                        child: _buildDeliveryButton(
+                        child: _buildOptionButton(
                           title: 'يوصل لي',
                           value: 'delivery',
+                          selectedValue: selectedDelivery,
+                          onSelected: (value) {
+                            setState(() {
+                              selectedDelivery = value;
+                            });
+                          },
                         ),
                       ),
                     ],
                   ),
 
-                
-const SizedBox(height: 16),
+                  const SizedBox(height: 16),
 
-// Send Order Button
-SizedBox(
-  width: double.infinity,
-  height: 64,
-  child: ElevatedButton(
-    onPressed: () {
-      if (selectedDelivery == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('اختاري طريقة الاستلام أولاً'),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-        return;
-      }
+                  const Text(
+                    'طريقة الدفع',
+                    style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('سيتم إرسال طلبك قريباً'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    },
-    style: ElevatedButton.styleFrom(
-      backgroundColor: AppColors.primaryGreen,
-      foregroundColor: Colors.white,
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
-    ),
-    child: const Text(
-      'أرسل طلبي',
-      style: TextStyle(
-        fontSize: 21,
-        fontWeight: FontWeight.bold,
-      ),
-    ),
-  ),
-),
-const SizedBox(height: 12),
+                  const SizedBox(height: 10),
 
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildOptionButton(
+                          title: 'كاش',
+                          value: 'cash',
+                          selectedValue: selectedPayment,
+                          onSelected: (value) {
+                            setState(() {
+                              selectedPayment = value;
+                            });
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _buildOptionButton(
+                          title: 'كارت',
+                          value: 'card',
+                          selectedValue: selectedPayment,
+                          onSelected: (value) {
+                            setState(() {
+                              selectedPayment = value;
+                            });
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _buildOptionButton(
+                          title: 'محفظة',
+                          value: 'wallet',
+                          selectedValue: selectedPayment,
+                          onSelected: (value) {
+                            setState(() {
+                              selectedPayment = value;
+                            });
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 18),
+
+                  SizedBox(
+                    width: double.infinity,
+                    height: 64,
+                    child: ElevatedButton(
+                      onPressed: _isSubmitting
+                          ? null
+                          : _submitOrder,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primaryGreen,
+                        foregroundColor: Colors.white,
+                        disabledBackgroundColor:
+                            AppColors.primaryGreen.withValues(
+                          alpha: 0.5,
+                        ),
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                      child: _isSubmitting
+                          ? const SizedBox(
+                              width: 25,
+                              height: 25,
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2.5,
+                              ),
+                            )
+                          : const Text(
+                              'أرسل طلبي',
+                              style: TextStyle(
+                                fontSize: 21,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 12),
                 ],
               ),
             );
@@ -298,10 +529,9 @@ const SizedBox(height: 12),
     );
   }
 
-  // Quantity Button
   Widget _quantityButton({
     required IconData icon,
-    required VoidCallback onPressed,
+    required VoidCallback? onPressed,
   }) {
     return SizedBox(
       width: 30,
@@ -323,21 +553,20 @@ const SizedBox(height: 12),
     );
   }
 
-  // Delivery Selection Button
-  Widget _buildDeliveryButton({
+  Widget _buildOptionButton({
     required String title,
     required String value,
+    required String? selectedValue,
+    required ValueChanged<String> onSelected,
   }) {
-    final isSelected = selectedDelivery == value;
+    final isSelected = selectedValue == value;
 
     return SizedBox(
-      height: 58,
+      height: 55,
       child: OutlinedButton(
-        onPressed: () {
-          setState(() {
-            selectedDelivery = value;
-          });
-        },
+        onPressed: _isSubmitting
+            ? null
+            : () => onSelected(value),
         style: OutlinedButton.styleFrom(
           backgroundColor: isSelected
               ? AppColors.primaryGreen.withValues(alpha: 0.10)
@@ -356,7 +585,7 @@ const SizedBox(height: 12),
         child: Text(
           title,
           style: const TextStyle(
-            fontSize: 16,
+            fontSize: 15,
             fontWeight: FontWeight.bold,
           ),
         ),
